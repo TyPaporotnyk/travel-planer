@@ -138,7 +138,7 @@ class TravelProjectPlaceService:
         result = await self.db_session.execute(stmt)
         await self.db_session.flush()
 
-        if result.scalar_one_or_none() is not None:
+        if result.scalar_one_or_none() is None:
             raise ProjectPlaceNotFoundError
 
     async def get_places_count(self, project_id: int) -> int:
