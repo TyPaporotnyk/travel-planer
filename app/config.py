@@ -21,3 +21,5 @@ REDIS_PORT = config("REDIS_PORT", cast=int, default=6379)
 REDIS_DB = config("REDIS_DB", cast=int, default=0)
 REDIS_PASSWORD = config("REDIS_PASSWORD", cast=str, default="")
 REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+MAX_PROJECT_PLACES_COUNT = 10

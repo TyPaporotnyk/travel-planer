@@ -1,11 +1,18 @@
 import asyncio
 from dataclasses import dataclass
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import MAX_PROJECT_PLACES_COUNT
 from app.places.clients import PlacesClient
-from app.places.exceptions import PlaceValidationError, ProjectPlaceNotFoundError
+from app.places.exceptions import (
+    DuplicatePlaceInProjectError,
+    MaxPlacesExceededError,
+    PlaceValidationError,
+    ProjectPlaceNotFoundError,
+)
 from app.places.models import TravelProjectPlace
 
 
@@ -28,15 +35,26 @@ class TravelProjectPlaceService:
         result = await self.db_session.execute(stmt)
         return list(result.scalars().all())
 
-    async def create(self, **fields) -> TravelProjectPlace | None:
+    async def create(self, **fields) -> TravelProjectPlace:
         external_id = fields.get("external_place_id")
+        project_id = fields.get("project_id")
+
+        current_count = await self.get_places_count(project_id)  # type: ignore
+        if current_count + 1 > MAX_PROJECT_PLACES_COUNT:
+            raise MaxPlacesExceededError
+
         if external_id and not await self.place_client.validate_place(external_id):
-            return None
+            raise PlaceValidationError
 
         place = TravelProjectPlace(**fields)
-
         self.db_session.add(place)
-        await self.db_session.flush()
+
+        try:
+            async with self.db_session.begin_nested():
+                await self.db_session.flush()
+        except IntegrityError as exc:
+            raise DuplicatePlaceInProjectError from exc
+
         await self.db_session.refresh(place)
 
         return place
@@ -51,11 +69,17 @@ class TravelProjectPlaceService:
             {p["external_place_id"] for p in places_data if "external_place_id" in p}
         )
 
+        if len(places_data) != len(unique_external_ids):
+            raise DuplicatePlaceInProjectError
+
+        current_count = await self.get_places_count(project_id)
+        if current_count + len(unique_external_ids) > MAX_PROJECT_PLACES_COUNT:
+            raise MaxPlacesExceededError
+
         validation_tasks = [
             self.place_client.validate_place(ext_id) for ext_id in unique_external_ids
         ]
         validation_results = await asyncio.gather(*validation_tasks)
-
         if not all(validation_results):
             raise PlaceValidationError
 
@@ -65,7 +89,11 @@ class TravelProjectPlaceService:
             self.db_session.add(place)
             places.append(place)
 
-        await self.db_session.flush()
+        try:
+            async with self.db_session.begin_nested():
+                await self.db_session.flush()
+        except IntegrityError as exc:
+            raise DuplicatePlaceInProjectError from exc
 
         for place in places:
             await self.db_session.refresh(place)
@@ -97,3 +125,13 @@ class TravelProjectPlaceService:
 
         if result.scalar_one_or_none() is not None:
             raise ProjectPlaceNotFoundError
+
+    async def get_places_count(self, project_id: int) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(TravelProjectPlace)
+            .where(TravelProjectPlace.project_id == project_id)
+        )
+        result = await self.db_session.execute(stmt)
+
+        return result.scalar() or 0

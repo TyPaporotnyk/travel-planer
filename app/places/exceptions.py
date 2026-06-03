@@ -7,3 +7,11 @@ class ProjectPlaceNotFoundError(AppException):
 
 class PlaceValidationError(AppException):
     pass
+
+
+class MaxPlacesExceededError(AppException):
+    pass
+
+
+class DuplicatePlaceInProjectError(AppException):
+    pass

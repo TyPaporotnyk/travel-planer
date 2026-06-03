@@ -1,7 +1,12 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.places.dependencies import ProjectPlaceServiceDep
-from app.places.exceptions import ProjectPlaceNotFoundError
+from app.places.exceptions import (
+    DuplicatePlaceInProjectError,
+    MaxPlacesExceededError,
+    PlaceValidationError,
+    ProjectPlaceNotFoundError,
+)
 from app.places.schemas import (
     CreateProjectPlaceSchema,
     ResponseProjectPlaceSchema,
@@ -21,13 +26,23 @@ async def create_travel_project_place(
     data: CreateProjectPlaceSchema,
     service: ProjectPlaceServiceDep,
 ):
-    place = await service.create(**data.model_dump())
-
-    if not place:
+    try:
+        place = await service.create(**data.model_dump())
+    except PlaceValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid external_place_id or place not found in external API",
-        )
+            detail="Invalid external_place_id or place not found in external API.",
+        ) from exc
+    except MaxPlacesExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 10 places allowed per project.",
+        ) from exc
+    except DuplicatePlaceInProjectError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This external place is already linked to the project.",
+        ) from exc
 
     return ApiResponse(data=place)
 
