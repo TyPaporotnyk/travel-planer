@@ -15,7 +15,12 @@ docker compose up -d --build
 ```
 
 ## API Documentation
-Once the application is running, the interactive Swagger documentation is available at:
+Once the application is running, you can access the API documentation in two ways:
+
+### Swagger UI
 ```
 http://127.0.0.1:8000/docs#/
 ```
+
+### Postman Collection
+**File location:** `docs/travel_planer.postman_collection.json`
