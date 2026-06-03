@@ -1,7 +1,13 @@
 from fastapi import APIRouter, HTTPException, status
 
+from app.places.dependencies import ProjectPlaceServiceDep
+from app.places.exceptions import PlaceValidationError
 from app.schemas import ApiResponse
 from app.travels.dependencies import TravelProjectServiceDep
+from app.travels.exceptions import (
+    CannotDeleteWithVisitedPlacesError,
+    TravelProjectNotFoundError,
+)
 from app.travels.schemas import (
     CreateTravelSchema,
     ResponseTravelSchema,
@@ -18,9 +24,22 @@ router = APIRouter()
 )
 async def create_travel_project(
     data: CreateTravelSchema,
-    service: TravelProjectServiceDep,
+    project_service: TravelProjectServiceDep,
+    place_service: ProjectPlaceServiceDep,
 ):
-    project = await service.create(**data.model_dump())
+    project_fields = data.model_dump(exclude={"places"})
+    project = await project_service.create(**project_fields)
+
+    if data.places:
+        places_data = [place.model_dump() for place in data.places]
+
+        try:
+            await place_service.create_many(project.id, places_data)
+        except PlaceValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One or more external place IDs are invalid in the external API",
+            ) from exc
 
     return ApiResponse(data=project)
 
@@ -75,10 +94,13 @@ async def delete_travel_project(
     id: int,
     service: TravelProjectServiceDep,
 ):
-    deleted = await service.delete(id)
-
-    if not deleted:
+    try:
+        await service.delete(id)
+    except TravelProjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Travel project not found") from exc
+    except CannotDeleteWithVisitedPlacesError as exc:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Travel project not found",
-        )
+            status_code=400, detail="Cannot delete project with visited places"
+        ) from exc
+
+    return None

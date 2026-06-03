@@ -3,6 +3,11 @@ from dataclasses import dataclass
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.places.models import TravelProjectPlace
+from app.travels.exceptions import (
+    CannotDeleteWithVisitedPlacesError,
+    TravelProjectNotFoundError,
+)
 from app.travels.models import TravelProject
 
 
@@ -26,7 +31,7 @@ class TravelProjectService:
         project = TravelProject(**fields)
 
         self.db_session.add(project)
-        await self.db_session.commit()
+        await self.db_session.flush()
         await self.db_session.refresh(project)
 
         return project
@@ -40,18 +45,26 @@ class TravelProjectService:
         )
 
         result = await self.db_session.execute(stmt)
-        await self.db_session.commit()
+        await self.db_session.flush()
 
         return result.scalar_one_or_none()
 
-    async def delete(self, id: int) -> bool:
-        stmt = (
-            delete(TravelProject)
-            .where(TravelProject.id == id)
-            .returning(TravelProject.id)
+    async def delete(self, id: int):
+        project_exists_stmt = select(TravelProject.id).where(TravelProject.id == id)
+        project_exists_res = await self.db_session.execute(project_exists_stmt)
+        if project_exists_res.scalar_one_or_none() is None:
+            raise TravelProjectNotFoundError
+
+        visited_stmt = (
+            select(TravelProjectPlace.id)
+            .where(TravelProjectPlace.project_id == id, TravelProjectPlace.visited)
+            .limit(1)
         )
+        visited_res = await self.db_session.execute(visited_stmt)
 
-        result = await self.db_session.execute(stmt)
-        await self.db_session.commit()
+        if visited_res.scalar_one_or_none() is not None:
+            raise CannotDeleteWithVisitedPlacesError
 
-        return result.scalar_one_or_none() is not None
+        delete_stmt = delete(TravelProject).where(TravelProject.id == id)
+        await self.db_session.execute(delete_stmt)
+        await self.db_session.flush()

@@ -10,4 +10,6 @@ def get_travel_project_service(db_session: DbSessionDep) -> TravelProjectService
     return TravelProjectService(db_session=db_session)
 
 
-TravelProjectServiceDep = Annotated[TravelProjectService, Depends(get_travel_project_service)]
+TravelProjectServiceDep = Annotated[
+    TravelProjectService, Depends(get_travel_project_service)
+]
