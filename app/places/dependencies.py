@@ -9,7 +9,8 @@ from app.places.services import TravelProjectPlaceService
 
 def get_place_client(request: Request) -> PlacesClient:
     client = request.app.state.http_client
-    return PlacesClient(client=client)
+    redis_client = request.app.state.redis_client
+    return PlacesClient(client=client, redis_client=redis_client)
 
 
 PlacesClientDep = Annotated[PlacesClient, Depends(get_place_client)]
