@@ -27,6 +27,14 @@ class TravelProjectService:
 
         return list(result.scalars().all())
 
+    async def get_list(self, page: int, size: int = 10) -> list[TravelProject]:
+        offset = (page - 1) * size
+
+        stmt = select(TravelProject).limit(size).offset(offset)
+        result = await self.db_session.execute(stmt)
+
+        return list(result.scalars().all())
+
     async def create(self, **fields) -> TravelProject:
         project = TravelProject(**fields)
 

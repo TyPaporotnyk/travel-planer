@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.places.dependencies import ProjectPlaceServiceDep
 from app.places.exceptions import DuplicatePlaceInProjectError, MaxPlacesExceededError, PlaceValidationError
@@ -73,8 +73,10 @@ async def get_travel_project(
 @router.get("", response_model=ApiResponse[list[ResponseTravelSchema]])
 async def get_travel_projects(
     service: TravelProjectServiceDep,
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
 ):
-    projects = await service.get_all()
+    projects = await service.get_list(page, size)
 
     return ApiResponse(data=projects)
 

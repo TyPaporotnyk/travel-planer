@@ -35,6 +35,21 @@ class TravelProjectPlaceService:
         result = await self.db_session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_list(
+        self, project_id: int, page: int, size: int = 10
+    ) -> list[TravelProjectPlace]:
+        offset = (page - 1) * size
+
+        stmt = (
+            select(TravelProjectPlace)
+            .where(TravelProjectPlace.project_id == project_id)
+            .limit(size)
+            .offset(offset)
+        )
+
+        result = await self.db_session.execute(stmt)
+        return list(result.scalars().all())
+
     async def create(self, **fields) -> TravelProjectPlace:
         external_id = fields.get("external_place_id")
         project_id = fields.get("project_id")

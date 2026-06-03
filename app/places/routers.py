@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.places.dependencies import ProjectPlaceServiceDep
 from app.places.exceptions import (
@@ -51,8 +51,14 @@ async def create_travel_project_place(
 async def get_travel_project_places(
     project_id: int,
     service: ProjectPlaceServiceDep,
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
 ):
-    places = await service.get_by_project(project_id=project_id)
+    places = await service.get_list(
+        project_id=project_id,
+        page=page,
+        size=size
+    )
 
     return ApiResponse(data=places)
 
